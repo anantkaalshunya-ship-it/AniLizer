@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Topbar } from '../components/Topbar';
 import { getAnimeList, getBanners } from '../services/storage';
 import { Anime, Banner } from '../types';
@@ -13,13 +13,17 @@ const NEON_COLORS = ['#FF2B4F', '#00F0FF', '#00FF7F', '#FFD200', '#D946EF'];
 
 export const Home: React.FC = () => {
   const [banners, setBanners] = useState<Banner[]>([]);
-  const [currentBanner, setCurrentBanner] = useState(0);
   const [animeList, setAnimeList] = useState<Anime[]>([]);
   const [loading, setLoading] = useState(true);
   
+  // -- Infinite Slider State --
+  const [slideIndex, setSlideIndex] = useState(1);
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [isAutoPlaying, setIsAutoPlaying] = useState(true);
+  // ---------------------------
+
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedGenre, setSelectedGenre] = useState('');
-  const [isAutoPlaying, setIsAutoPlaying] = useState(true);
   const navigate = useNavigate();
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -42,13 +46,31 @@ export const Home: React.FC = () => {
     fetchData();
   }, []);
 
+  // -- Infinite Slider Logic --
+  const extendedBanners = useMemo(() => {
+     if (banners.length === 0) return [];
+     // Clone first and last slides to create infinite loop illusion
+     const first = banners[0];
+     const last = banners[banners.length - 1];
+     return [last, ...banners, first];
+  }, [banners]);
+
+  // Reset index when banners load
+  useEffect(() => {
+    if (banners.length > 0) {
+        setSlideIndex(1);
+        setIsTransitioning(false);
+    }
+  }, [banners]);
+
+  // Autoplay
   useEffect(() => {
     if (banners.length === 0 || !isAutoPlaying) return;
     const interval = setInterval(() => {
-      setCurrentBanner((prev) => (prev + 1) % banners.length);
+      handleNextSlide();
     }, 4000);
     return () => clearInterval(interval);
-  }, [banners, isAutoPlaying]);
+  }, [banners, isAutoPlaying, slideIndex]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -60,19 +82,52 @@ export const Home: React.FC = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleNext = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setIsAutoPlaying(false);
-    setCurrentBanner((prev) => (prev + 1) % banners.length);
+  const handleNextSlide = () => {
+      if (slideIndex >= extendedBanners.length - 1) return;
+      setIsTransitioning(true);
+      setSlideIndex(prev => prev + 1);
   };
 
-  const handlePrev = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setIsAutoPlaying(false);
-    setCurrentBanner((prev) => (prev - 1 + banners.length) % banners.length);
+  const handlePrevSlide = () => {
+      if (slideIndex <= 0) return;
+      setIsTransitioning(true);
+      setSlideIndex(prev => prev - 1);
   };
 
-  // Magic Search for Admin (Optional fallback if they forget password but know this trick)
+  const handleTransitionEnd = () => {
+      if (!isTransitioning) return;
+
+      // If at "Clone First" (End of list), snap instantly to "Real First"
+      if (slideIndex >= extendedBanners.length - 1) {
+          setIsTransitioning(false);
+          setSlideIndex(1);
+      } 
+      // If at "Clone Last" (Start of list), snap instantly to "Real Last"
+      else if (slideIndex <= 0) {
+          setIsTransitioning(false);
+          setSlideIndex(extendedBanners.length - 2);
+      }
+  };
+
+  const onNextClick = (e: React.MouseEvent) => {
+     e.stopPropagation();
+     setIsAutoPlaying(false);
+     handleNextSlide();
+  };
+
+  const onPrevClick = (e: React.MouseEvent) => {
+     e.stopPropagation();
+     setIsAutoPlaying(false);
+     handlePrevSlide();
+  };
+
+  const onDotClick = (idx: number) => {
+      setIsAutoPlaying(false);
+      setIsTransitioning(true);
+      setSlideIndex(idx + 1); // +1 because index 0 is the clone
+  };
+
+  // Magic Search for Admin (Optional fallback)
   useEffect(() => {
     if (searchQuery === 'Mr AniLizer') {
        navigate('/admin');
@@ -91,6 +146,11 @@ export const Home: React.FC = () => {
   const webSeries = animeList.filter(a => a.type === 'WebSeries');
 
   const isSearchActive = showDropdown || searchQuery.length > 0;
+
+  // Calculate active dot index for UI
+  let activeDotIndex = slideIndex - 1;
+  if (activeDotIndex < 0) activeDotIndex = banners.length - 1;
+  if (activeDotIndex >= banners.length) activeDotIndex = 0;
 
   if (loading) {
     return (
@@ -183,32 +243,38 @@ export const Home: React.FC = () => {
         <div className="relative w-full max-w-[calc(100%-30px)] mx-auto mt-[10px] mb-[20px] group">
           <div className="relative w-full h-[220px] md:h-[350px] overflow-hidden rounded-[15px] bg-[#111] border-[2px] border-[#E60026] shadow-[0_0_15px_#E60026]">
              
-             {/* Fade Transition Logic */}
-             {banners.map((banner, index) => (
-               <div 
-                 key={banner.id}
-                 className={`absolute inset-0 w-full h-full transition-opacity duration-500 ease-in-out cursor-pointer ${index === currentBanner ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}
-                 onClick={() => {
-                     if (banner.animeId) {
-                         navigate(`/watch/${banner.animeId}`);
-                     } else if (banner.linkUrl && banner.linkUrl !== '#') {
-                         window.open(banner.linkUrl, '_blank');
-                     }
-                 }}
-               >
-                 <img src={banner.imageUrl} alt="Banner" className="w-full h-full object-cover" />
-               </div>
-             ))}
+             {/* Infinite Slide Container */}
+             <div 
+                className={`flex h-full ${isTransitioning ? 'transition-transform duration-500 ease-in-out' : ''}`}
+                style={{ transform: `translateX(-${slideIndex * 100}%)` }}
+                onTransitionEnd={handleTransitionEnd}
+             >
+               {extendedBanners.map((banner, index) => (
+                 <div 
+                   key={`${banner.id}-${index}`}
+                   className="w-full h-full flex-shrink-0 cursor-pointer"
+                   onClick={() => {
+                       if (banner.animeId) {
+                           navigate(`/watch/${banner.animeId}`);
+                       } else if (banner.linkUrl && banner.linkUrl !== '#') {
+                           window.open(banner.linkUrl, '_blank');
+                       }
+                   }}
+                 >
+                   <img src={banner.imageUrl} alt="Banner" className="w-full h-full object-cover" />
+                 </div>
+               ))}
+             </div>
 
              <button 
-                onClick={handlePrev}
+                onClick={onPrevClick}
                 className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-[#E60026] text-white p-2 rounded-full backdrop-blur-sm border border-white/10 transition-all z-20"
              >
                <ChevronLeft size={24} />
              </button>
              
              <button 
-                onClick={handleNext}
+                onClick={onNextClick}
                 className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-[#E60026] text-white p-2 rounded-full backdrop-blur-sm border border-white/10 transition-all z-20"
              >
                <ChevronRight size={24} />
@@ -218,8 +284,8 @@ export const Home: React.FC = () => {
                 {banners.map((_, idx) => (
                   <div 
                     key={idx} 
-                    className={`w-[10px] h-[10px] rounded-full cursor-pointer transition-all ${idx === currentBanner ? 'bg-[#E60026] shadow-[0_0_8px_#E60026]' : 'bg-white/30'}`}
-                    onClick={() => { setIsAutoPlaying(false); setCurrentBanner(idx); }}
+                    className={`w-[10px] h-[10px] rounded-full cursor-pointer transition-all ${idx === activeDotIndex ? 'bg-[#E60026] shadow-[0_0_8px_#E60026]' : 'bg-white/30'}`}
+                    onClick={() => onDotClick(idx)}
                   />
                 ))}
               </div>
@@ -262,7 +328,7 @@ export const Home: React.FC = () => {
           </div>
         )}
 
-        {/* Trending Movies (NEW SECTION) */}
+        {/* Trending Movies */}
         {(trendingMovies.length > 0) && (
           <div>
              <h2 className="text-[22px] font-bold text-white mx-[15px] mt-[10px] mb-[10px] relative pl-[10px]">
