@@ -139,10 +139,6 @@ export const Player: React.FC = () => {
             title={episode.title}
             frameBorder="0"
             referrerPolicy="no-referrer"
-            // Sandbox prevents redirects/popups. 
-            // We include 'allow-scripts' so video works.
-            // We OMIT 'allow-top-navigation' and 'allow-popups' to block redirects.
-            sandbox="allow-forms allow-scripts allow-same-origin allow-presentation"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
             className="w-full h-full border-none"
          />

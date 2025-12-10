@@ -32,7 +32,7 @@ export const History: React.FC = () => {
             {history.map((item, idx) => (
                <div 
                  key={idx} 
-                 onClick={() => navigate(`/watch/${item.animeId}`)}
+                 onClick={() => navigate(`/player/${item.animeId}/${item.episodeId}`)}
                  className="flex items-center gap-4 bg-[#110F15] p-3 rounded-xl border border-white/5 hover:border-[#00F0FF] transition-all cursor-pointer group"
                >
                   <img src={item.animePoster} className="w-[80px] h-[50px] object-cover rounded-lg" alt="" />
