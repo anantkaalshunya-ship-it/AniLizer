@@ -16,7 +16,7 @@ export interface Anime {
   description: string;
   poster: string;
   isTrending: boolean;
-  type: 'Anime' | 'WebSeries';
+  type: 'Anime' | 'WebSeries' | 'Movie';
   language?: string;
   episodes: Episode[];
 }

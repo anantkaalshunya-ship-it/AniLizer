@@ -17,6 +17,7 @@ const NOTIF_HISTORY_PATH = 'notification_history';
 // Local Storage Keys
 const HISTORY_KEY = 'anilizer_history';
 const FAVORITES_KEY = 'anilizer_favorites';
+const LOGO_CACHE_KEY = 'anilizer_logo_cache';
 
 const DEFAULT_VIDEO_URL = 'https://jumpshare.com/embed/un1bFcLQM3M0LgIosNx5';
 
@@ -179,12 +180,20 @@ export const getAnimeById = async (id: string): Promise<Anime | undefined> => {
 
 // --- SETTINGS (LOGO) ---
 export const getLogo = async (): Promise<string> => {
+  // 1. Check Local Cache First (Instant Load)
+  const cachedLogo = localStorage.getItem(LOGO_CACHE_KEY);
+  if (cachedLogo) return cachedLogo;
+
+  // 2. Fetch from Network if missing
   await ensureAuth();
   try {
     const dbRef = ref(db);
     const snapshot = await get(child(dbRef, `${SETTINGS_PATH}/logo`));
     if (snapshot.exists()) {
-      return snapshot.val().url;
+      const url = snapshot.val().url;
+      // Update Cache
+      localStorage.setItem(LOGO_CACHE_KEY, url);
+      return url;
     }
   } catch (e) { 
     // console.error(e); // Suppress permission errors for logo
@@ -195,6 +204,8 @@ export const getLogo = async (): Promise<string> => {
 export const saveLogo = async (url: string) => {
   await ensureAuth();
   await set(ref(db, `${SETTINGS_PATH}/logo`), { url });
+  // Update Cache Immediately so Admin sees it
+  localStorage.setItem(LOGO_CACHE_KEY, url);
 };
 
 // --- BACKUP / RESTORE ---

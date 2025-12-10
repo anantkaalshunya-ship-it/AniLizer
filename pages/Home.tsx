@@ -87,6 +87,7 @@ export const Home: React.FC = () => {
   });
 
   const trendingAnime = animeList.filter(a => a.isTrending && a.type === 'Anime');
+  const trendingMovies = animeList.filter(a => a.isTrending && a.type === 'Movie');
   const webSeries = animeList.filter(a => a.type === 'WebSeries');
 
   const isSearchActive = showDropdown || searchQuery.length > 0;
@@ -182,27 +183,22 @@ export const Home: React.FC = () => {
         <div className="relative w-full max-w-[calc(100%-30px)] mx-auto mt-[10px] mb-[20px] group">
           <div className="relative w-full h-[220px] md:h-[350px] overflow-hidden rounded-[15px] bg-[#111] border-[2px] border-[#E60026] shadow-[0_0_15px_#E60026]">
              
-             {/* Slide Track */}
-             <div 
-               className="flex h-full transition-transform duration-500 ease-in-out"
-               style={{ transform: `translateX(-${currentBanner * 100}%)` }}
-             >
-                {banners.map((banner) => (
-                  <div 
-                    key={banner.id}
-                    className="w-full h-full flex-shrink-0 cursor-pointer"
-                    onClick={() => {
-                        if (banner.animeId) {
-                            navigate(`/watch/${banner.animeId}`);
-                        } else if (banner.linkUrl && banner.linkUrl !== '#') {
-                            window.open(banner.linkUrl, '_blank');
-                        }
-                    }}
-                  >
-                    <img src={banner.imageUrl} alt="Banner" className="w-full h-full object-cover" />
-                  </div>
-                ))}
-             </div>
+             {/* Fade Transition Logic */}
+             {banners.map((banner, index) => (
+               <div 
+                 key={banner.id}
+                 className={`absolute inset-0 w-full h-full transition-opacity duration-500 ease-in-out cursor-pointer ${index === currentBanner ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}
+                 onClick={() => {
+                     if (banner.animeId) {
+                         navigate(`/watch/${banner.animeId}`);
+                     } else if (banner.linkUrl && banner.linkUrl !== '#') {
+                         window.open(banner.linkUrl, '_blank');
+                     }
+                 }}
+               >
+                 <img src={banner.imageUrl} alt="Banner" className="w-full h-full object-cover" />
+               </div>
+             ))}
 
              <button 
                 onClick={handlePrev}
@@ -260,6 +256,21 @@ export const Home: React.FC = () => {
              </h2>
              <div className="flex gap-[15px] overflow-x-auto no-scrollbar px-[15px] pb-[15px]">
                {trendingAnime.map(anime => (
+                 <AnimeCard key={anime.id} anime={anime} />
+               ))}
+             </div>
+          </div>
+        )}
+
+        {/* Trending Movies (NEW SECTION) */}
+        {(trendingMovies.length > 0) && (
+          <div>
+             <h2 className="text-[22px] font-bold text-white mx-[15px] mt-[10px] mb-[10px] relative pl-[10px]">
+                <span className="absolute left-[-10px] top-[2px] w-[5px] h-[22px] bg-red-custom rounded-[3px]"></span>
+                Top Trending Movies
+             </h2>
+             <div className="flex gap-[15px] overflow-x-auto no-scrollbar px-[15px] pb-[15px]">
+               {trendingMovies.map(anime => (
                  <AnimeCard key={anime.id} anime={anime} />
                ))}
              </div>

@@ -741,8 +741,11 @@ export const Admin: React.FC = () => {
                   <div key={a.id} className="bg-[#1A1E2A] p-4 rounded-xl border border-white/5 flex gap-4 hover:border-white/20">
                      <img src={a.poster} className="w-16 h-24 object-cover rounded" />
                      <div className="flex-1">
-                        <h3 className="font-bold">{a.title}</h3>
-                        <p className="text-sm text-gray-400">{a.genre} • {a.episodes?.length || 0} Eps</p>
+                        <div className="flex items-center gap-2">
+                            <h3 className="font-bold">{a.title}</h3>
+                            {a.isTrending && <span className="text-[10px] bg-yellow-500/20 text-yellow-500 px-2 py-0.5 rounded border border-yellow-500/30">Trending</span>}
+                        </div>
+                        <p className="text-sm text-gray-400">{a.genre} • {a.type} • {a.episodes?.length || 0} Eps</p>
                      </div>
                      <div className="flex gap-2">
                         <button onClick={() => openAnimeModal(a)} className="p-2 bg-gray-800 rounded border border-white/10"><Edit2 size={18}/></button>
@@ -922,13 +925,26 @@ export const Admin: React.FC = () => {
                         <select className="w-full bg-[#110F15] p-3 rounded border border-white/10 focus:border-[#E60026] outline-none" value={animeForm.type || 'Anime'} onChange={e => setAnimeForm({...animeForm, type: e.target.value as any})}>
                             <option value="Anime">Anime</option>
                             <option value="WebSeries">Web Series</option>
+                            <option value="Movie">Movie</option>
                         </select>
+                        
+                        {/* New Trending Checkbox */}
+                        <label className="flex items-center gap-3 bg-[#110F15] p-3 rounded border border-white/10 cursor-pointer hover:border-[#E60026] transition-colors">
+                            <input 
+                                type="checkbox" 
+                                className="accent-[#E60026] w-5 h-5"
+                                checked={animeForm.isTrending || false}
+                                onChange={e => setAnimeForm({...animeForm, isTrending: e.target.checked})} 
+                            />
+                            <span className="text-sm font-medium text-gray-300">Display in Trending Section</span>
+                        </label>
+
                         <textarea placeholder="Description" className="w-full bg-[#110F15] p-3 rounded border border-white/10 focus:border-[#E60026] outline-none min-h-[100px]" value={animeForm.description || ''} onChange={e => setAnimeForm({...animeForm, description: e.target.value})} />
-                        <button onClick={handleSaveAnime} className="w-full bg-[#E60026] hover:bg-[#ff1f45] py-3 rounded font-bold shadow-lg transition-all">Save Anime</button>
+                        <button onClick={handleSaveAnime} className="w-full bg-[#E60026] hover:bg-[#ff1f45] py-3 rounded font-bold shadow-lg transition-all">Save Content</button>
                     </div>
                     <div className="lg:col-span-2 flex flex-col h-full min-h-[500px]">
                         <div className="flex justify-between mb-4 bg-[#110F15] p-3 rounded-lg border border-white/5">
-                            <h4 className="font-bold flex items-center gap-2"><Layers size={18}/> Episodes</h4>
+                            <h4 className="font-bold flex items-center gap-2"><Layers size={18}/> Episodes / Parts</h4>
                             <div className="flex gap-2 items-center">
                                 <span className="text-xs text-gray-400">Batch Season:</span>
                                 <input type="text" className="w-12 bg-[#1A1E2A] border border-white/10 rounded text-center text-sm py-1" value={batchSeason} onChange={e => setBatchSeason(e.target.value)} />

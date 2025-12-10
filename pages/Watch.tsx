@@ -173,37 +173,41 @@ export const Watch: React.FC = () => {
           </div>
         </div>
 
-        {/* SEASONS & EPISODES */}
-        <div className="my-[22px] mb-[12px] flex items-center justify-between">
-            <div className="text-[20px] font-bold text-white drop-shadow-[0_0_6px_#FF2B4F]">Episodes</div>
-            {uniqueSeasons.length > 0 && (
-                <div className="relative w-[150px]">
-                    <select value={selectedSeason} onChange={(e) => setSelectedSeason(e.target.value)} className="w-full appearance-none bg-[#110F15] text-white border-2 border-[#E60026] shadow-[0_0_15px_rgba(230,0,38,0.5)] rounded-xl py-2 px-4 outline-none font-semibold">
-                        {uniqueSeasons.map(season => <option key={season} value={season}>Season {season}</option>)}
-                    </select>
-                    <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 text-[#E60026]" size={16} />
-                </div>
-            )}
-        </div>
+        {/* SEASONS & EPISODES (HIDDEN FOR MOVIES) */}
+        {anime.type !== 'Movie' && (
+          <>
+            <div className="my-[22px] mb-[12px] flex items-center justify-between">
+                <div className="text-[20px] font-bold text-white drop-shadow-[0_0_6px_#FF2B4F]">Episodes</div>
+                {uniqueSeasons.length > 0 && (
+                    <div className="relative w-[150px]">
+                        <select value={selectedSeason} onChange={(e) => setSelectedSeason(e.target.value)} className="w-full appearance-none bg-[#110F15] text-white border-2 border-[#E60026] shadow-[0_0_15px_rgba(230,0,38,0.5)] rounded-xl py-2 px-4 outline-none font-semibold">
+                            {uniqueSeasons.map(season => <option key={season} value={season}>Season {season}</option>)}
+                        </select>
+                        <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 text-[#E60026]" size={16} />
+                    </div>
+                )}
+            </div>
 
-        <div className="flex flex-col gap-[14px]">
-          {filteredEpisodes.length > 0 ? (
-            filteredEpisodes.map((ep, i) => {
-               return (
-                  <div key={ep.id} onClick={() => handlePlay(ep)} className="flex items-center gap-[14px] bg-[rgba(255,0,20,0.05)] border border-[#00FF7F] p-[12px] rounded-[14px] cursor-pointer hover:bg-[rgba(0,255,127,0.12)] hover:shadow-[0_0_15px_#00FF7F] group transition-all">
-                    <div className="relative w-[120px] flex-shrink-0">
-                      <img src={ep.thumbnail || 'https://via.placeholder.com/300x200?text=No+Thumb'} className="w-full aspect-[16/9] object-cover rounded-[8px]" />
-                      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[36px] h-[36px] bg-[#00FF7F]/80 [clip-path:polygon(0%_0%,100%_50%,0%_100%)] group-hover:scale-110 transition-transform"></div>
-                    </div>
-                    <div>
-                      <div className="font-bold text-white text-[16px]">{ep.title}</div>
-                      <div className="text-[14px] text-gray-400 mt-1">Season {ep.season || '1'}</div>
-                    </div>
-                  </div>
-               );
-            })
-          ) : <div className="text-gray-500 text-center">No episodes in this season.</div>}
-        </div>
+            <div className="flex flex-col gap-[14px]">
+              {filteredEpisodes.length > 0 ? (
+                filteredEpisodes.map((ep, i) => {
+                  return (
+                      <div key={ep.id} onClick={() => handlePlay(ep)} className="flex items-center gap-[14px] bg-[rgba(255,0,20,0.05)] border border-[#00FF7F] p-[12px] rounded-[14px] cursor-pointer hover:bg-[rgba(0,255,127,0.12)] hover:shadow-[0_0_15px_#00FF7F] group transition-all">
+                        <div className="relative w-[120px] flex-shrink-0">
+                          <img src={ep.thumbnail || 'https://via.placeholder.com/300x200?text=No+Thumb'} className="w-full aspect-[16/9] object-cover rounded-[8px]" />
+                          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[36px] h-[36px] bg-[#00FF7F]/80 [clip-path:polygon(0%_0%,100%_50%,0%_100%)] group-hover:scale-110 transition-transform"></div>
+                        </div>
+                        <div>
+                          <div className="font-bold text-white text-[16px]">{ep.title}</div>
+                          <div className="text-[14px] text-gray-400 mt-1">Season {ep.season || '1'}</div>
+                        </div>
+                      </div>
+                  );
+                })
+              ) : <div className="text-gray-500 text-center">No episodes in this season.</div>}
+            </div>
+          </>
+        )}
       </div>
 
       {/* SHARE MODAL */}
