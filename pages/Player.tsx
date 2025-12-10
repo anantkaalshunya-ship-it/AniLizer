@@ -37,6 +37,38 @@ export const Player: React.FC = () => {
     fetchDetails();
   }, [animeId, episodeId]);
 
+  const handleEnterFullscreen = async () => {
+    // 1. Rotate the UI via CSS state
+    setIsRotated(true);
+
+    // 2. Signal Android System to enter Immersive Mode (Hides Battery/Status Bar)
+    try {
+      if (document.documentElement.requestFullscreen) {
+        await document.documentElement.requestFullscreen();
+      } else if ((document.documentElement as any).webkitRequestFullscreen) {
+        await (document.documentElement as any).webkitRequestFullscreen(); // Safari/Older Chrome
+      } else if ((document.documentElement as any).msRequestFullscreen) {
+        await (document.documentElement as any).msRequestFullscreen(); // IE/Edge
+      }
+    } catch (e) {
+      console.warn("Fullscreen request denied or not supported:", e);
+    }
+  };
+
+  const handleExit = async () => {
+    // Exit system fullscreen if active
+    if (document.fullscreenElement) {
+        try {
+            if (document.exitFullscreen) {
+                await document.exitFullscreen();
+            } else if ((document as any).webkitExitFullscreen) {
+                await (document as any).webkitExitFullscreen();
+            }
+        } catch (e) { console.warn(e); }
+    }
+    navigate(-1);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
@@ -66,8 +98,8 @@ export const Player: React.FC = () => {
         position: 'fixed',
         top: '50%',
         left: '50%',
-        width: '100vh',
-        height: '100vw',
+        width: '100dvh', // Use dynamic viewport height for better mobile support
+        height: '100dvw',
         transform: 'translate(-50%, -50%) rotate(90deg)',
         zIndex: 9999,
         touchAction: 'none'
@@ -80,7 +112,7 @@ export const Player: React.FC = () => {
        {/* Back Button */}
        <div className="absolute top-4 left-4 z-50">
           <button 
-            onClick={() => navigate(-1)}
+            onClick={handleExit}
             className="bg-black/50 text-white p-3 rounded-full backdrop-blur-md active:bg-[#E60026] md:hover:bg-[#E60026] transition-colors border border-white/10 group shadow-[0_0_15px_rgba(0,0,0,0.5)]"
           >
             <ArrowLeft size={24} className="group-hover:-translate-x-1 transition-transform" />
@@ -91,7 +123,7 @@ export const Player: React.FC = () => {
        {!isRotated && (
          <div className="absolute top-4 right-4 z-50">
             <button 
-              onClick={() => setIsRotated(true)}
+              onClick={handleEnterFullscreen}
               className="flex items-center gap-2 bg-black/50 text-white px-4 py-3 rounded-full backdrop-blur-md active:bg-[#E60026] md:hover:bg-[#E60026] transition-colors border border-white/10 shadow-[0_0_15px_rgba(0,0,0,0.5)]"
             >
                <span className="text-xs font-bold uppercase tracking-wider">Click here to fullscreen</span>
@@ -107,7 +139,10 @@ export const Player: React.FC = () => {
             title={episode.title}
             frameBorder="0"
             referrerPolicy="no-referrer"
-            // allowFullScreen removed to disable native fullscreen behavior
+            // Sandbox prevents redirects/popups. 
+            // We include 'allow-scripts' so video works.
+            // We OMIT 'allow-top-navigation' and 'allow-popups' to block redirects.
+            sandbox="allow-forms allow-scripts allow-same-origin allow-presentation"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
             className="w-full h-full border-none"
          />
