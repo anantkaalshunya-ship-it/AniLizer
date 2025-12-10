@@ -191,7 +191,13 @@ export const Home: React.FC = () => {
                   <div 
                     key={banner.id}
                     className="w-full h-full flex-shrink-0 cursor-pointer"
-                    onClick={() => banner.linkUrl && banner.linkUrl !== '#' ? window.open(banner.linkUrl, '_blank') : null}
+                    onClick={() => {
+                        if (banner.animeId) {
+                            navigate(`/watch/${banner.animeId}`);
+                        } else if (banner.linkUrl && banner.linkUrl !== '#') {
+                            window.open(banner.linkUrl, '_blank');
+                        }
+                    }}
                   >
                     <img src={banner.imageUrl} alt="Banner" className="w-full h-full object-cover" />
                   </div>

@@ -179,13 +179,11 @@ export const Admin: React.FC = () => {
   };
 
   const fetchAnalytics = async () => {
+      // 1. Fetch Users & Views
+      let userCount = 0;
+      let viewMap: Record<string, number> = {};
       try {
           const usersSnapshot = await get(ref(db, 'users'));
-          const commentsSnapshot = await get(ref(db, 'comments'));
-          
-          let userCount = 0;
-          let viewMap: Record<string, number> = {};
-          
           if (usersSnapshot.exists()) {
               const usersData = usersSnapshot.val();
               userCount = Object.keys(usersData).length;
@@ -199,9 +197,15 @@ export const Admin: React.FC = () => {
                   }
               });
           }
+      } catch (e) {
+          console.warn("Analytics: Users permission denied. Update Firebase rules.", e);
+      }
 
-          let commentCount = 0;
-          let recentCmts: any[] = [];
+      // 2. Fetch Comments
+      let commentCount = 0;
+      let recentCmts: any[] = [];
+      try {
+          const commentsSnapshot = await get(ref(db, 'comments'));
           if (commentsSnapshot.exists()) {
               const commentsData = commentsSnapshot.val();
               Object.keys(commentsData).forEach(animeId => {
@@ -219,28 +223,28 @@ export const Admin: React.FC = () => {
                   });
               });
           }
-
-          const topAnime = Object.entries(viewMap)
-              .map(([id, views]) => {
-                  const found = animeList.find(a => a.id === id);
-                  return { title: found?.title || 'Unknown Anime', views };
-              })
-              .sort((a, b) => b.views - a.views)
-              .slice(0, 5);
-
-          recentCmts.sort((a, b) => b.time - a.time);
-
-          setAnalytics({
-              totalUsers: userCount,
-              totalComments: commentCount,
-              totalViews: Object.values(viewMap).reduce((a, b) => a + b, 0),
-              topAnime,
-              recentComments: recentCmts.slice(0, 6)
-          });
-
       } catch (e) {
-          console.error("Analytics fetch error:", e);
+           console.warn("Analytics: Comments permission denied.", e);
       }
+
+      // 3. Process Data
+      const topAnime = Object.entries(viewMap)
+          .map(([id, views]) => {
+              const found = animeList.find(a => a.id === id);
+              return { title: found?.title || 'Unknown Anime', views };
+          })
+          .sort((a, b) => b.views - a.views)
+          .slice(0, 5);
+
+      recentCmts.sort((a, b) => b.time - a.time);
+
+      setAnalytics({
+          totalUsers: userCount,
+          totalComments: commentCount,
+          totalViews: Object.values(viewMap).reduce((a, b) => a + b, 0),
+          topAnime,
+          recentComments: recentCmts.slice(0, 6)
+      });
   };
 
   const handleAdminAuth = async (e: React.FormEvent) => {
@@ -997,7 +1001,23 @@ export const Admin: React.FC = () => {
                    </div>
                </div>
 
-               <input type="text" placeholder="Link URL (Optional)" className="w-full bg-[#110F15] p-3 rounded mb-6 border border-white/10 focus:border-[#E60026] outline-none" value={bannerForm.linkUrl || ''} onChange={e => setBannerForm({...bannerForm, linkUrl: e.target.value})} />
+               <div className="mb-4">
+                   <label className="block text-xs text-gray-400 mb-1">Link to Anime (Internal)</label>
+                   <select 
+                       className="w-full bg-[#110F15] p-3 rounded border border-white/10 focus:border-[#E60026] outline-none text-sm"
+                       value={bannerForm.animeId || ''}
+                       onChange={(e) => setBannerForm({...bannerForm, animeId: e.target.value})}
+                   >
+                       <option value="">-- None --</option>
+                       {animeList.map(a => (
+                           <option key={a.id} value={a.id}>{a.title}</option>
+                       ))}
+                   </select>
+               </div>
+               
+               <div className="text-center text-xs text-gray-500 mb-2">- OR -</div>
+
+               <input type="text" placeholder="External Link URL" className="w-full bg-[#110F15] p-3 rounded mb-6 border border-white/10 focus:border-[#E60026] outline-none" value={bannerForm.linkUrl || ''} onChange={e => setBannerForm({...bannerForm, linkUrl: e.target.value})} />
                
                <div className="flex gap-3">
                    <button onClick={() => setShowBannerModal(false)} className="flex-1 bg-gray-700 hover:bg-gray-600 py-3 rounded font-semibold transition-colors">Cancel</button>

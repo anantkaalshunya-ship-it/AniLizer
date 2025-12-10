@@ -25,6 +25,7 @@ export interface Banner {
   id: string;
   imageUrl: string;
   linkUrl: string;
+  animeId?: string;
 }
 
 export interface BackupData {
