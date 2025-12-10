@@ -1,0 +1,21 @@
+
+{
+  "name": "AniLizer",
+  "short_name": "AniLizer",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#0B0F19",
+  "theme_color": "#E60026",
+  "icons": [
+    {
+      "src": "https://zippy-gold-pjtvv4rnrb-199jsywth2.edgeone.dev/31055.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://zippy-gold-pjtvv4rnrb-199jsywth2.edgeone.dev/31055.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+{
+  "name": "AniLizer",
+  "description": "A premium, neon-themed anime streaming application with admin management, local storage persistence, and a unique playback experience.",
+  "requestFramePermissions": []
+}
