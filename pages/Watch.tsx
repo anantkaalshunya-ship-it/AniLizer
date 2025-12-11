@@ -1,10 +1,9 @@
-
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getAnimeById, toggleFavorite, isFavorite, addComment, subscribeToComments } from '../services/storage';
 import { Anime, Episode, Comment } from '../types';
 import { Topbar } from '../components/Topbar';
-import { Play, ChevronDown, ArrowLeft, Loader2, Heart, SkipForward, Send, MessageSquare, X, Share2, Copy, Check } from 'lucide-react';
+import { Play, ArrowLeft, Loader2, Heart, SkipForward, Send, MessageSquare, X, Share2, Copy, Check, ChevronDown } from 'lucide-react';
 import { auth } from '../services/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 
@@ -28,6 +27,10 @@ export const Watch: React.FC = () => {
 
   // Season Logic
   const [selectedSeason, setSelectedSeason] = useState<string>('1');
+  const [isSeasonOpen, setIsSeasonOpen] = useState(false); // New state for custom dropdown
+  
+  // Interaction State
+  const [selectedEpisodeId, setSelectedEpisodeId] = useState<string | null>(null);
 
   // Monitor Auth State for Comments
   useEffect(() => {
@@ -83,7 +86,17 @@ export const Watch: React.FC = () => {
     };
   }, [id]);
 
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const closeDropdown = () => setIsSeasonOpen(false);
+    if (isSeasonOpen) {
+        window.addEventListener('click', closeDropdown);
+    }
+    return () => window.removeEventListener('click', closeDropdown);
+  }, [isSeasonOpen]);
+
   const handlePlay = (episode: Episode) => {
+    setSelectedEpisodeId(episode.id);
     if (anime) {
       navigate(`/player/${anime.id}/${episode.id}`);
     }
@@ -188,35 +201,82 @@ export const Watch: React.FC = () => {
         {/* SEASONS & EPISODES (HIDDEN FOR MOVIES) */}
         {anime.type !== 'Movie' && (
           <>
-            <div className="my-[22px] mb-[12px] flex items-center justify-between">
-                <div className="text-[20px] font-bold text-white drop-shadow-[0_0_6px_#FF2B4F]">Episodes</div>
+            <div className="mt-[24px] mb-[16px] flex items-center justify-between z-30 relative">
+                <h2 className="text-[28px] font-bold text-white drop-shadow-[0_0_10px_rgba(230,0,38,0.8)]">
+                    Episodes
+                </h2>
+
+                {/* Custom Neon Season Dropdown */}
                 {uniqueSeasons.length > 0 && (
-                    <div className="relative w-[150px]">
-                        <select value={selectedSeason} onChange={(e) => setSelectedSeason(e.target.value)} className="w-full appearance-none bg-[#110F15] text-white border-2 border-[#E60026] shadow-[0_0_15px_rgba(230,0,38,0.5)] rounded-xl py-2 px-4 outline-none font-semibold">
-                            {uniqueSeasons.map(season => <option key={season} value={season}>Season {season}</option>)}
-                        </select>
-                        <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 text-[#E60026]" size={16} />
+                    <div className="relative">
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); setIsSeasonOpen(!isSeasonOpen); }}
+                            className={`flex items-center gap-2 bg-[#110F15] text-white py-2 pl-5 pr-4 rounded-full border-[2px] border-[#E60026] shadow-[0_0_15px_rgba(230,0,38,0.5)] transition-all duration-300 hover:shadow-[0_0_25px_rgba(230,0,38,0.8)] ${isSeasonOpen ? 'bg-[#E60026]/10' : ''}`}
+                        >
+                            <span className="font-bold text-sm tracking-wide">Season {selectedSeason}</span>
+                            <ChevronDown size={18} className={`text-[#E60026] transition-transform duration-300 ${isSeasonOpen ? 'rotate-180' : ''}`} />
+                        </button>
+
+                        {/* Dropdown Popup */}
+                        {isSeasonOpen && (
+                            <div className="absolute right-0 top-[120%] w-[180px] bg-[#110F15]/95 backdrop-blur-xl border border-[#E60026] rounded-xl overflow-hidden shadow-[0_0_30px_rgba(230,0,38,0.4)] z-50 flex flex-col p-1.5 animate-in fade-in zoom-in-95 duration-200">
+                                {uniqueSeasons.map(s => (
+                                    <button
+                                        key={s}
+                                        onClick={() => setSelectedSeason(s)}
+                                        className={`text-left px-4 py-3 rounded-lg text-sm font-bold transition-all flex items-center justify-between mb-0.5 last:mb-0 ${
+                                            selectedSeason === s
+                                            ? 'bg-[#E60026] text-white shadow-[0_0_15px_#E60026]'
+                                            : 'text-gray-300 hover:bg-[#E60026]/10 hover:text-[#E60026] hover:shadow-[inset_0_0_10px_rgba(230,0,38,0.2)]'
+                                        }`}
+                                    >
+                                        Season {s}
+                                        {selectedSeason === s && <div className="w-2 h-2 rounded-full bg-white shadow-[0_0_5px_white]" />}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
 
-            <div className="flex flex-col gap-[14px]">
+            <div className="flex flex-col gap-3">
               {filteredEpisodes.length > 0 ? (
-                filteredEpisodes.map((ep, i) => {
+                filteredEpisodes.map((ep, idx) => {
+                  const isSelected = selectedEpisodeId === ep.id;
+                  const displayName = ep.number ? `Ep ${ep.number}: ${ep.title}` : ep.title;
                   return (
-                      <div key={ep.id} onClick={() => handlePlay(ep)} className="flex items-center gap-[14px] bg-[rgba(255,0,20,0.05)] border border-[#00FF7F] p-[12px] rounded-[14px] cursor-pointer hover:bg-[rgba(0,255,127,0.12)] hover:shadow-[0_0_15px_#00FF7F] group transition-all">
-                        <div className="relative w-[120px] flex-shrink-0">
-                          <img src={ep.thumbnail || 'https://via.placeholder.com/300x200?text=No+Thumb'} className="w-full aspect-[16/9] object-cover rounded-[8px]" />
-                          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[36px] h-[36px] bg-[#00FF7F]/80 [clip-path:polygon(0%_0%,100%_50%,0%_100%)] group-hover:scale-110 transition-transform"></div>
+                      <div 
+                        key={ep.id} 
+                        tabIndex={0}
+                        onClick={() => handlePlay(ep)} 
+                        className={`flex items-center gap-3 bg-[#110F15] p-2 rounded-[12px] border transition-all duration-300 cursor-pointer group outline-none ${
+                            isSelected 
+                            ? "border-[#00FF7F] shadow-[0_0_15px_rgba(0,255,127,0.9)] bg-[#161b22]" 
+                            : "border-[#00FF7F] shadow-none hover:shadow-[0_0_12px_rgba(0,255,127,1)] hover:bg-[#161b22] focus:shadow-[0_0_12px_rgba(0,255,127,1)] focus:bg-[#161b22] active:shadow-[0_0_8px_rgba(0,255,127,1)] active:scale-[0.98]"
+                        }`}
+                      >
+                        {/* Thumbnail with Red Play Overlay */}
+                        <div className="relative w-[100px] h-[60px] flex-shrink-0 rounded-[8px] overflow-hidden">
+                            <img src={ep.thumbnail || anime.poster} className="w-full h-full object-cover" alt={ep.title} />
+                            <div className="absolute inset-0 flex items-center justify-center transition-colors">
+                                 <Play size={24} className="text-[#E60026] fill-[#E60026] drop-shadow-[0_0_5px_rgba(0,0,0,0.8)]" />
+                            </div>
                         </div>
-                        <div>
-                          <div className="font-bold text-white text-[16px]">{ep.title}</div>
-                          <div className="text-[14px] text-gray-400 mt-1">Season {ep.season || '1'}</div>
+
+                        {/* Text Info */}
+                        <div className="flex-1">
+                             <h4 className="font-bold text-white text-[14px] leading-tight mb-0.5">{displayName}</h4>
+                             <p className="text-xs text-gray-400">Season {ep.season || '1'}</p>
                         </div>
                       </div>
                   );
                 })
-              ) : <div className="text-gray-500 text-center">No episodes in this season.</div>}
+              ) : (
+                <div className="flex flex-col items-center justify-center py-12 border border-dashed border-white/10 rounded-2xl bg-white/5">
+                    <p className="text-gray-500 font-medium">No episodes available for Season {selectedSeason}</p>
+                </div>
+              )}
             </div>
           </>
         )}
@@ -301,9 +361,10 @@ export const Watch: React.FC = () => {
                            value={newComment} onChange={e => setNewComment(e.target.value)}
                            onKeyDown={e => e.key === 'Enter' && handlePostComment()}
                          />
-                         <button onClick={handlePostComment} className="bg-[#E60026] text-white px-4 rounded-lg font-bold hover:bg-[#ff1f45] transition-colors"><Send size={20}/></button>
+                         <button onClick={handlePostComment} className="bg-[#E60026] text-white px-4 rounded-lg font-bold hover:bg-[#ff1f45] transition-colors">
+                             <Send size={18} />
+                         </button>
                      </div>
-                     <p className="text-xs text-gray-500 ml-1 mt-2">Posting as: <span className="text-[#E60026]">{userName}</span></p>
                 </div>
             </div>
         </div>

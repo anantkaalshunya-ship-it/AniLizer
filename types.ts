@@ -5,6 +5,7 @@ export interface Episode {
   videoUrl: string; // Default/Fallback
   thumbnail: string;
   season?: string;
+  number?: number; // Added for explicit ordering
 }
 
 export interface Anime {

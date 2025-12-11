@@ -344,10 +344,17 @@ export const Admin: React.FC = () => {
   };
 
   const addEpisode = () => {
+    // Determine the next number specific to this season
+    const currentSeasonEps = tempEpisodes.filter(ep => ep.season === batchSeason);
+    const nextNum = currentSeasonEps.length + 1;
+    
     const newEp: Episode = {
       id: Date.now().toString(),
-      title: `Episode ${tempEpisodes.length + 1}`,
-      videoUrl: '', thumbnail: '', season: batchSeason
+      title: `Episode ${nextNum}`,
+      videoUrl: '', 
+      thumbnail: '', 
+      season: batchSeason,
+      number: nextNum
     };
     setTempEpisodes([...tempEpisodes, newEp]);
   };
@@ -1000,8 +1007,20 @@ export const Admin: React.FC = () => {
                             {tempEpisodes.map((ep, idx) => (
                                 <div key={ep.id} className="bg-[#110F15] p-3 rounded border border-white/5 flex flex-col gap-3 group hover:border-white/10 transition-colors">
                                     <div className="flex gap-2 items-center">
-                                        <span className="text-gray-600 font-mono text-xs w-5">{idx+1}</span>
+                                        {/* Added Explicit Episode Number Input */}
+                                        <div className="flex items-center gap-1 bg-[#1A1E2A] border border-white/10 rounded px-2">
+                                            <span className="text-[10px] text-gray-500">Ep</span>
+                                            <input 
+                                                type="number" 
+                                                className="w-8 bg-transparent text-sm text-center outline-none py-1.5" 
+                                                value={ep.number || ''} 
+                                                onChange={e => updateEpisode(ep.id, 'number', parseInt(e.target.value))} 
+                                                placeholder={String(idx + 1)}
+                                            />
+                                        </div>
+                                        
                                         <input type="text" placeholder="Title" className="flex-1 bg-[#1A1E2A] p-2 text-sm border border-white/10 rounded focus:border-[#E60026] outline-none" value={ep.title} onChange={e => updateEpisode(ep.id, 'title', e.target.value)} />
+                                        
                                         <div className="flex items-center gap-1 bg-[#1A1E2A] border border-white/10 rounded px-2">
                                             <span className="text-[10px] text-gray-500 uppercase">Seas</span>
                                             <input type="text" className="w-6 bg-transparent text-sm text-center outline-none py-1.5" value={ep.season} onChange={e => updateEpisode(ep.id, 'season', e.target.value)} />
