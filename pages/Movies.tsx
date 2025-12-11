@@ -5,9 +5,9 @@ import { Anime } from '../types';
 import { AnimeCard } from '../components/AnimeCard';
 import { Topbar } from '../components/Topbar';
 import { BottomNav } from '../components/BottomNav';
-import { Search, Filter, Loader2, Tv } from 'lucide-react';
+import { Search, Filter, Loader2, Clapperboard } from 'lucide-react';
 
-export const Series: React.FC = () => {
+export const Movies: React.FC = () => {
   const [animeList, setAnimeList] = useState<Anime[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -27,10 +27,10 @@ export const Series: React.FC = () => {
   }, []);
 
   const filteredList = animeList.filter(a => {
-    const isSeries = a.type === 'Anime' || a.type === 'WebSeries';
+    const isMovie = a.type === 'Movie';
     const matchesSearch = a.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           a.genre.toLowerCase().includes(searchQuery.toLowerCase());
-    return isSeries && matchesSearch;
+    return isMovie && matchesSearch;
   });
 
   if (loading) {
@@ -48,7 +48,7 @@ export const Series: React.FC = () => {
       <div className="p-[15px]">
         {/* Header */}
         <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2">
-           <Tv className="text-[#E60026]" /> Series & Anime
+           <Clapperboard className="text-[#E60026]" /> Movies
         </h2>
 
         {/* Search Bar */}
@@ -59,7 +59,7 @@ export const Series: React.FC = () => {
 
             <input 
               type="text" 
-              placeholder="Search series..." 
+              placeholder="Search movies..." 
               className="w-full bg-[#12141E] border-y border-r border-[#E60026] rounded-r-[10px] rounded-l-none py-[12px] pl-[60px] pr-[50px] text-[16px] text-white focus:outline-none placeholder-gray-400 transition-shadow h-[50px]"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}

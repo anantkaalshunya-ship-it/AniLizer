@@ -6,6 +6,7 @@ import { Anime, Episode, Comment } from '../types';
 import { Topbar } from '../components/Topbar';
 import { Play, ChevronDown, ArrowLeft, Loader2, Heart, SkipForward, Send, MessageSquare, X, Share2, Copy, Check } from 'lucide-react';
 import { auth } from '../services/firebase';
+import { onAuthStateChanged } from 'firebase/auth';
 
 export const Watch: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -28,6 +29,26 @@ export const Watch: React.FC = () => {
   // Season Logic
   const [selectedSeason, setSelectedSeason] = useState<string>('1');
 
+  // Monitor Auth State for Comments
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+        if (user && !user.isAnonymous) {
+            setUserName(user.displayName || 'User');
+        } else {
+            // Fallback to local session if available or default to Guest
+            const session = localStorage.getItem('anilizer_active_session');
+            if (session) {
+                try {
+                   setUserName(JSON.parse(session).name); 
+                } catch(e) { setUserName('Guest'); }
+            } else {
+                setUserName('Guest');
+            }
+        }
+    });
+    return () => unsubscribe();
+  }, []);
+
   useEffect(() => {
     let unsubscribe: (() => void) | undefined;
 
@@ -48,16 +69,6 @@ export const Watch: React.FC = () => {
                     
                     // Subscribe to comments
                     unsubscribe = subscribeToComments(id, setComments);
-                    
-                    // Get user name from auth
-                    const currentUser = auth.currentUser;
-                    if (currentUser && !currentUser.isAnonymous) {
-                        setUserName(currentUser.displayName || 'User');
-                    } else {
-                        // Fallback to local session if any (though we moved to firebase auth, keep this safe)
-                        const session = localStorage.getItem('anilizer_active_session');
-                        if (session) setUserName(JSON.parse(session).name);
-                    }
                 }
             } catch (e) {
                 console.error("Error fetching anime", e);
@@ -88,6 +99,7 @@ export const Watch: React.FC = () => {
 
   const handlePostComment = async () => {
     if (!newComment.trim() || !id) return;
+    // Double check name before posting
     const name = userName || (auth.currentUser?.displayName) || 'Guest'; 
     await addComment(id, name, newComment);
     setNewComment('');
@@ -291,7 +303,7 @@ export const Watch: React.FC = () => {
                          />
                          <button onClick={handlePostComment} className="bg-[#E60026] text-white px-4 rounded-lg font-bold hover:bg-[#ff1f45] transition-colors"><Send size={20}/></button>
                      </div>
-                     <p className="text-xs text-gray-500 ml-1 mt-2">Posting as: <span className="text-[#E60026]">{userName || 'Guest'}</span></p>
+                     <p className="text-xs text-gray-500 ml-1 mt-2">Posting as: <span className="text-[#E60026]">{userName}</span></p>
                 </div>
             </div>
         </div>

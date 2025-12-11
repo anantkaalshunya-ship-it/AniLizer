@@ -8,6 +8,7 @@ import { Profile } from './pages/Profile';
 import { History } from './pages/History';
 import { Favorites } from './pages/Favorites';
 import { Series } from './pages/Series';
+import { Movies } from './pages/Movies';
 import { Player } from './pages/Player';
 import { requestForToken } from './services/firebase';
 import { saveTokenToDb } from './services/storage';
@@ -30,6 +31,7 @@ const App: React.FC = () => {
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/series" element={<Series />} />
+        <Route path="/movies" element={<Movies />} />
         <Route path="/admin" element={<Admin />} />
         <Route path="/watch/:id" element={<Watch />} />
         <Route path="/player/:animeId/:episodeId" element={<Player />} />

@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { getAnimeList, saveAnime, deleteAnime, getBanners, saveBanner, deleteBanner, getLogo, saveLogo, createBackup, restoreBackup, getFcmServerKey, saveFcmServerKey, getAllFcmTokens, saveNotificationHistory, getNotificationHistory, NotificationLog } from '../services/storage';
+import { getAnimeList, saveAnime, deleteAnime, getBanners, saveBanner, deleteBanner, getLogo, saveLogo, createBackup, restoreBackup, getFcmServerKey, saveFcmServerKey, getAllFcmTokens, saveNotificationHistory, getNotificationHistory, NotificationLog, checkIsAdmin } from '../services/storage';
 import { Anime, Banner, Episode } from '../types';
 import { Trash2, Edit2, Plus, X, Upload, Image as ImageIcon, Layers, Settings, Loader2, Download, RefreshCw, Lock, Mail, ArrowRight, Shield, LogOut, Link as LinkIcon, Save, Bell, User as UserIcon, LayoutDashboard, TrendingUp, Users, MessageSquare, Activity, Send, ExternalLink, FileJson, CheckCircle, AlertCircle, Home, Clock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -137,27 +137,39 @@ export const Admin: React.FC = () => {
   // Banner Form
   const [bannerForm, setBannerForm] = useState<Partial<Banner>>({});
 
+  // Auth Check and Role Verification
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-        setAdminUser(user);
-        setAuthChecking(false);
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
         if (user) {
-            refreshData();
-            fetchAnalytics();
-            loadFcmConfig();
+            // Check if Super Admin or DB Admin
+            const isAdmin = await checkIsAdmin(user);
+            if (isAdmin) {
+                setAdminUser(user);
+                refreshData();
+                fetchAnalytics();
+                loadFcmConfig();
+            } else {
+                setAdminUser(null); 
+                // User is logged in but not admin -> will show Access Denied screen
+            }
+        } else {
+            setAdminUser(null);
         }
+        setAuthChecking(false);
     });
     return () => unsubscribe();
   }, []);
 
+  // Re-fetch when tab changes
   useEffect(() => {
+      if (!adminUser) return;
       if (activeTab === 'dashboard') {
           fetchAnalytics();
       }
       if (activeTab === 'notifications') {
           loadNotifHistory();
       }
-  }, [activeTab]);
+  }, [activeTab, adminUser]);
 
   const loadFcmConfig = async () => {
       const key = await getFcmServerKey();
@@ -179,49 +191,45 @@ export const Admin: React.FC = () => {
   };
 
   const fetchAnalytics = async () => {
-      // 1. Fetch Users & Views
+      // 1. Fetch Users & Views (Realtime DB)
       let userCount = 0;
       let viewMap: Record<string, number> = {};
       try {
           const usersSnapshot = await get(ref(db, 'users'));
           if (usersSnapshot.exists()) {
-              const usersData = usersSnapshot.val();
-              userCount = Object.keys(usersData).length;
-              
-              Object.values(usersData).forEach((u: any) => {
-                  if (u.history) {
-                      const history = Array.isArray(u.history) ? u.history : Object.values(u.history);
-                      history.forEach((h: any) => {
-                          viewMap[h.animeId] = (viewMap[h.animeId] || 0) + 1;
-                      });
-                  }
-              });
+             const users = usersSnapshot.val();
+             userCount = Object.keys(users).length;
+             
+             Object.values(users).forEach((u: any) => {
+                 if (u.history && Array.isArray(u.history)) {
+                     u.history.forEach((h: any) => {
+                         viewMap[h.animeId] = (viewMap[h.animeId] || 0) + 1;
+                     });
+                 }
+             });
           }
       } catch (e) {
-          console.warn("Analytics: Users permission denied. Update Firebase rules.", e);
+          console.warn("Analytics: Users permission denied. Update Database rules.", e);
       }
 
-      // 2. Fetch Comments
+      // 2. Fetch Comments (Realtime DB)
       let commentCount = 0;
       let recentCmts: any[] = [];
       try {
           const commentsSnapshot = await get(ref(db, 'comments'));
           if (commentsSnapshot.exists()) {
-              const commentsData = commentsSnapshot.val();
-              Object.keys(commentsData).forEach(animeId => {
-                  const animeCmts = commentsData[animeId];
-                  const list = Object.values(animeCmts) as any[];
-                  commentCount += list.length;
-                  
-                  list.forEach(c => {
-                      recentCmts.push({
-                          user: c.userName,
-                          text: c.text,
-                          anime: animeId,
-                          time: c.timestamp
-                      });
-                  });
-              });
+             const comments = commentsSnapshot.val();
+             const list = Object.values(comments) as any[];
+             commentCount = list.length;
+             
+             // Sort and take top 6
+             list.sort((a, b) => b.timestamp - a.timestamp);
+             recentCmts = list.slice(0, 6).map(c => ({
+                 user: c.userName || 'Guest',
+                 text: c.text || '',
+                 anime: c.animeId || '',
+                 time: c.timestamp || Date.now()
+             }));
           }
       } catch (e) {
            console.warn("Analytics: Comments permission denied.", e);
@@ -236,14 +244,12 @@ export const Admin: React.FC = () => {
           .sort((a, b) => b.views - a.views)
           .slice(0, 5);
 
-      recentCmts.sort((a, b) => b.time - a.time);
-
       setAnalytics({
           totalUsers: userCount,
           totalComments: commentCount,
           totalViews: Object.values(viewMap).reduce((a, b) => a + b, 0),
           topAnime,
-          recentComments: recentCmts.slice(0, 6)
+          recentComments: recentCmts
       });
   };
 
@@ -254,20 +260,35 @@ export const Admin: React.FC = () => {
       try {
           if (isLoginView) {
               await signInWithEmailAndPassword(auth, email, password);
+              // Check role handled in onAuthStateChanged
           } else {
               if (!name) throw new Error("Name is required");
               const cred = await createUserWithEmailAndPassword(auth, email, password);
               await updateProfile(cred.user, { displayName: name });
+              // Note: New signups are NOT admins by default. They need to be promoted in DB.
           }
       } catch (err: any) {
           let msg = "Authentication failed";
-          if (err.code === 'auth/invalid-email') msg = "Invalid email";
-          if (err.code === 'auth/user-not-found') msg = "User not found";
-          if (err.code === 'auth/wrong-password') msg = "Wrong password";
-          if (err.code === 'auth/email-already-in-use') msg = "Email already in use";
-          if (err.code === 'auth/weak-password') msg = "Password too weak";
-          if (err.message) msg = err.message;
-          setAuthError(msg);
+          const errCode = err.code;
+          const errMsg = err.message || '';
+
+          if (errCode === 'auth/invalid-email') {
+              msg = "Invalid email";
+          } else if (errCode === 'auth/user-not-found') {
+              msg = "User not found";
+          } else if (errCode === 'auth/wrong-password') {
+              msg = "Wrong password";
+          } else if (errCode === 'auth/invalid-credential' || errMsg.includes('invalid-credential')) {
+              msg = "Incorrect Email or Password";
+          } else if (errCode === 'auth/email-already-in-use') {
+              msg = "Email already in use";
+          } else if (errCode === 'auth/weak-password') {
+              msg = "Password too weak";
+          } else if (errMsg) {
+              msg = errMsg.replace('Firebase: ', '').replace('Error ', '').replace(/\(auth\/.*\)\.?/, '').trim();
+          }
+          
+          setAuthError(msg || "Authentication failed");
           setIsLoggingIn(false);
       }
   };
@@ -544,6 +565,28 @@ export const Admin: React.FC = () => {
 
   if (authChecking) return <div className="min-h-screen flex items-center justify-center bg-[#0B0F19]"><Loader2 className="animate-spin text-primary" size={40} /></div>;
 
+  // Access Denied Screen (For logged in users who are NOT admins)
+  if (!adminUser && auth.currentUser) {
+      return (
+          <div className="min-h-screen bg-[#0B0F19] flex items-center justify-center p-4">
+              <div className="w-full max-w-md bg-[#110F15] border border-red-500/30 rounded-2xl p-8 shadow-neon-card text-center">
+                  <Shield size={60} className="mx-auto text-[#E60026] mb-4" />
+                  <h2 className="text-2xl font-bold text-white mb-2">Access Denied</h2>
+                  <p className="text-gray-400 mb-6">You do not have permission to view the Admin Panel.</p>
+                  
+                  <div className="flex flex-col gap-3">
+                      <button onClick={() => navigate('/')} className="bg-gray-800 hover:bg-gray-700 text-white py-3 rounded-xl font-semibold transition-colors">
+                          Go to Home
+                      </button>
+                      <button onClick={() => { signOut(auth); navigate('/admin'); }} className="bg-[#E60026] hover:bg-[#ff1f45] text-white py-3 rounded-xl font-semibold transition-colors">
+                          Logout
+                      </button>
+                  </div>
+              </div>
+          </div>
+      );
+  }
+
   if (!adminUser) {
       return (
           <div className="min-h-screen bg-[#0B0F19] flex items-center justify-center p-4">
@@ -689,7 +732,7 @@ export const Admin: React.FC = () => {
                                   return (
                                     <div key={idx} className="flex gap-4 p-3 rounded-xl bg-black/20 border border-white/5 hover:border-white/10 transition-colors">
                                         <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center font-bold text-white text-sm border border-white/10 shrink-0">
-                                            {cmt.user.charAt(0).toUpperCase()}
+                                            {(cmt.user || 'G').charAt(0).toUpperCase()}
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <div className="flex justify-between items-center mb-1">

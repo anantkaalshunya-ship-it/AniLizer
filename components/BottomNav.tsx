@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Home, Tv, History, Menu, Heart } from 'lucide-react';
+import { Home, Tv, Menu, Clapperboard } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 
 export const BottomNav: React.FC = () => {
@@ -31,19 +31,11 @@ export const BottomNav: React.FC = () => {
       </div>
 
       <div 
-        className={`flex flex-col items-center gap-1.5 cursor-pointer transition-colors ${isActive('/favorites') ? 'text-white' : 'text-gray-500 hover:text-white'}`}
-        onClick={() => navigate('/favorites')}
+        className={`flex flex-col items-center gap-1.5 cursor-pointer transition-colors ${isActive('/movies') ? 'text-white' : 'text-gray-500 hover:text-white'}`}
+        onClick={() => navigate('/movies')}
       >
-        <Heart size={22} />
-        <span className="text-[10px] font-medium">Favorites</span>
-      </div>
-
-      <div 
-        className={`flex flex-col items-center gap-1.5 cursor-pointer transition-colors ${isActive('/history') ? 'text-white' : 'text-gray-500 hover:text-white'}`}
-        onClick={() => navigate('/history')}
-      >
-        <History size={22} />
-        <span className="text-[10px] font-medium">History</span>
+        <Clapperboard size={22} />
+        <span className="text-[10px] font-medium">Movies</span>
       </div>
 
       <div 

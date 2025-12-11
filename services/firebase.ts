@@ -5,10 +5,8 @@ import { getDatabase } from 'firebase/database';
 import { getMessaging, getToken } from 'firebase/messaging';
 
 // Helper to safely access env vars in various environments (Vite, CRA, Next, etc.)
-// with a fallback to hardcoded values for the current preview environment.
 const getEnv = (key: string, fallback: string) => {
   try {
-    // Check Vite
     // @ts-ignore
     if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env[key]) {
       // @ts-ignore
@@ -17,7 +15,6 @@ const getEnv = (key: string, fallback: string) => {
   } catch (e) {}
 
   try {
-    // Check Process (React App / Node)
     if (typeof process !== 'undefined' && process.env && process.env[key]) {
       return process.env[key];
     }
@@ -51,7 +48,7 @@ const firebaseConfig = {
 // Singleton pattern to prevent multiple initializations
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const auth = getAuth(app);
-const db = getDatabase(app);
+const db = getDatabase(app); // Using Realtime Database
 const messaging = getMessaging(app);
 
 // Helper to ask Android/Browser system for notification permission
@@ -59,7 +56,6 @@ export const requestForToken = async () => {
   try {
     const permission = await Notification.requestPermission();
     if (permission === 'granted') {
-      // Use the config VAPID key
       const token = await getToken(messaging, { 
         vapidKey: config.vapidKey 
       });

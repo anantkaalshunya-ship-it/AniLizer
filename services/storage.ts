@@ -2,17 +2,19 @@
 import { Anime, Banner, BackupData, HistoryItem, Episode, Comment } from '../types';
 import { db, auth } from './firebase';
 import { 
-  ref, get, set, remove, child, push, onValue, off
+  ref, set, get, remove, child, push, update, 
+  query, orderByChild, equalTo, onValue 
 } from 'firebase/database';
-import { signInAnonymously, onAuthStateChanged } from 'firebase/auth';
+import { signInAnonymously, onAuthStateChanged, User } from 'firebase/auth';
 
-// Paths
+// Collection/Path Names
 const ANIME_PATH = 'anime';
 const BANNER_PATH = 'banners';
 const SETTINGS_PATH = 'settings';
 const COMMENTS_PATH = 'comments';
 const TOKENS_PATH = 'fcm_tokens';
 const NOTIF_HISTORY_PATH = 'notification_history';
+const USERS_PATH = 'users';
 
 // Local Storage Keys
 const HISTORY_KEY = 'anilizer_history';
@@ -68,11 +70,10 @@ const ensureAuth = async () => {
       if (user) {
         resolve();
       } else {
-        // Attempt anonymous auth, but don't block if it fails (rules might allow public read)
         signInAnonymously(auth)
           .then(() => resolve())
           .catch((err) => {
-            console.warn("Anonymous auth failed (check Firebase Console), proceeding:", err);
+            console.warn("Anonymous auth failed, proceeding:", err);
             resolve(); 
           });
       }
@@ -80,30 +81,42 @@ const ensureAuth = async () => {
   });
 };
 
+// --- ADMIN CHECK ---
+export const checkIsAdmin = async (user: User | null): Promise<boolean> => {
+    if (!user) return false;
+    
+    // 1. Super Admin Hardcode
+    if (user.email === 'sanskaranimeyt@gmail.com') return true;
+
+    // 2. Database Check
+    try {
+        const snapshot = await get(ref(db, `${USERS_PATH}/${user.uid}/isAdmin`));
+        return snapshot.exists() && snapshot.val() === true;
+    } catch (e) {
+        return false;
+    }
+};
+
 // --- BANNERS ---
 export const getBanners = async (): Promise<Banner[]> => {
   await ensureAuth();
   try {
-    const dbRef = ref(db);
-    const snapshot = await get(child(dbRef, BANNER_PATH));
-    
+    const snapshot = await get(ref(db, BANNER_PATH));
     if (snapshot.exists()) {
-      const data = snapshot.val();
-      return Object.values(data) as Banner[];
+      return Object.values(snapshot.val());
     }
     
-    // Auto-seed only if we have permission
+    // Auto-seed
     try {
-      const bannerObject: Record<string, Banner> = {};
-      SEED_BANNERS.forEach(b => bannerObject[b.id] = b);
-      await set(ref(db, BANNER_PATH), bannerObject);
-    } catch (e) {
-      // Ignore seed write errors
-    }
+      const updates: any = {};
+      SEED_BANNERS.forEach(b => {
+        updates[`${BANNER_PATH}/${b.id}`] = b;
+      });
+      await update(ref(db), updates);
+    } catch (e) { /* ignore */ }
     return SEED_BANNERS;
-    
   } catch (error) {
-    console.warn("Error fetching banners (using seed):", error);
+    console.warn("Error fetching banners:", error);
     return SEED_BANNERS;
   }
 };
@@ -122,27 +135,25 @@ export const deleteBanner = async (id: string) => {
 export const getAnimeList = async (): Promise<Anime[]> => {
   await ensureAuth();
   try {
-    const dbRef = ref(db);
-    const snapshot = await get(child(dbRef, ANIME_PATH));
-
+    const snapshot = await get(ref(db, ANIME_PATH));
     if (snapshot.exists()) {
        const data = snapshot.val();
        return Object.values(data).map((a: any) => ({
          ...a,
          episodes: a.episodes || []
-       })) as Anime[];
+       }));
     }
 
     try {
-      const animeObject: Record<string, Anime> = {};
-      SEED_ANIME.forEach(a => animeObject[a.id] = a);
-      await set(ref(db, ANIME_PATH), animeObject);
-    } catch (e) { /* Ignore seed error */ }
-    
+      const updates: any = {};
+      SEED_ANIME.forEach(a => {
+        updates[`${ANIME_PATH}/${a.id}`] = a;
+      });
+      await update(ref(db), updates);
+    } catch (e) { /* ignore */ }
     return SEED_ANIME;
-    
   } catch (error) {
-    console.warn("Error fetching anime (using seed):", error);
+    console.warn("Error fetching anime:", error);
     return SEED_ANIME;
   }
 };
@@ -160,51 +171,37 @@ export const deleteAnime = async (id: string) => {
 export const getAnimeById = async (id: string): Promise<Anime | undefined> => {
   await ensureAuth();
   try {
-    const dbRef = ref(db);
-    const snapshot = await get(child(dbRef, `${ANIME_PATH}/${id}`));
+    const snapshot = await get(child(ref(db, ANIME_PATH), id));
     if (snapshot.exists()) {
       const data = snapshot.val();
-      return {
-        ...data,
-        episodes: data.episodes || []
-      } as Anime;
+      return { ...data, episodes: data.episodes || [] };
     }
-    // Fallback to seed if ID matches
     return SEED_ANIME.find(a => a.id === id);
   } catch (error) {
-    console.warn("Error fetching anime by ID:", error);
-    // Fallback to seed if ID matches
     return SEED_ANIME.find(a => a.id === id);
   }
 };
 
 // --- SETTINGS (LOGO) ---
 export const getLogo = async (): Promise<string> => {
-  // 1. Check Local Cache First (Instant Load)
   const cachedLogo = localStorage.getItem(LOGO_CACHE_KEY);
   if (cachedLogo) return cachedLogo;
 
-  // 2. Fetch from Network if missing
   await ensureAuth();
   try {
-    const dbRef = ref(db);
-    const snapshot = await get(child(dbRef, `${SETTINGS_PATH}/logo`));
+    const snapshot = await get(ref(db, `${SETTINGS_PATH}/global/logoUrl`));
     if (snapshot.exists()) {
-      const url = snapshot.val().url;
-      // Update Cache
+      const url = snapshot.val();
       localStorage.setItem(LOGO_CACHE_KEY, url);
       return url;
     }
-  } catch (e) { 
-    // console.error(e); // Suppress permission errors for logo
-  }
+  } catch (e) {}
   return "https://zippy-gold-pjtvv4rnrb-199jsywth2.edgeone.dev/31055.png";
 };
 
 export const saveLogo = async (url: string) => {
   await ensureAuth();
-  await set(ref(db, `${SETTINGS_PATH}/logo`), { url });
-  // Update Cache Immediately so Admin sees it
+  await update(ref(db, `${SETTINGS_PATH}/global`), { logoUrl: url });
   localStorage.setItem(LOGO_CACHE_KEY, url);
 };
 
@@ -237,29 +234,30 @@ export const createBackup = async (): Promise<void> => {
 
 export const restoreBackup = async (data: any) => {
   await ensureAuth();
-  
   if (!data || !Array.isArray(data.anime) || !Array.isArray(data.banners)) {
     throw new Error("Invalid backup format");
   }
 
-  const animeObject: Record<string, Anime> = {};
+  // Use multi-path updates for atomicity
+  const updates: any = {};
+  
   data.anime.forEach((a: Anime) => {
-     if (a.id) animeObject[a.id] = a;
+     if (a.id) updates[`${ANIME_PATH}/${a.id}`] = a;
   });
-  await set(ref(db, ANIME_PATH), animeObject);
 
-  const bannerObject: Record<string, Banner> = {};
   data.banners.forEach((b: Banner) => {
-    if (b.id) bannerObject[b.id] = b;
+    if (b.id) updates[`${BANNER_PATH}/${b.id}`] = b;
   });
-  await set(ref(db, BANNER_PATH), bannerObject);
 
   if (typeof data.logo === 'string') {
-      await saveLogo(data.logo);
+     updates[`${SETTINGS_PATH}/global/logoUrl`] = data.logo;
+     localStorage.setItem(LOGO_CACHE_KEY, data.logo);
   }
+
+  await update(ref(db), updates);
 };
 
-// --- HISTORY (HYBRID: FIREBASE + LOCAL) ---
+// --- HISTORY (HYBRID) ---
 export const addToHistory = async (anime: Anime, episode: Episode, index: number) => {
   await ensureAuth();
   const user = auth.currentUser;
@@ -275,23 +273,18 @@ export const addToHistory = async (anime: Anime, episode: Episode, index: number
   };
 
   if (user && !user.isAnonymous) {
-      // Firebase Storage for Logged In Users
       try {
-        const historyRef = ref(db, `users/${user.uid}/history`);
-        const snapshot = await get(historyRef);
-        let history: HistoryItem[] = snapshot.exists() ? (Array.isArray(snapshot.val()) ? snapshot.val() : Object.values(snapshot.val())) : [];
+        const userHistRef = ref(db, `${USERS_PATH}/${user.uid}/history`);
+        const snapshot = await get(userHistRef);
+        let history: HistoryItem[] = snapshot.exists() ? snapshot.val() : [];
         
-        // Remove existing
         history = history.filter(h => h.animeId !== anime.id);
-        // Add to front
         history.unshift(newItem);
-        // Limit
         if (history.length > 50) history.pop();
         
-        await set(historyRef, history);
-      } catch (e) { console.error("Firebase history save failed", e); }
+        await set(userHistRef, history);
+      } catch (e) { console.error("History save failed", e); }
   } else {
-      // Local Storage for Guests
       try {
         const raw = localStorage.getItem(HISTORY_KEY);
         let history: HistoryItem[] = raw ? JSON.parse(raw) : [];
@@ -309,10 +302,9 @@ export const getHistory = async (): Promise<HistoryItem[]> => {
 
   if (user && !user.isAnonymous) {
       try {
-        const snapshot = await get(ref(db, `users/${user.uid}/history`));
+        const snapshot = await get(ref(db, `${USERS_PATH}/${user.uid}/history`));
         if (snapshot.exists()) {
-            const val = snapshot.val();
-            return Array.isArray(val) ? val : Object.values(val);
+            return snapshot.val() || [];
         }
         return [];
       } catch (e) { return []; }
@@ -324,16 +316,16 @@ export const getHistory = async (): Promise<HistoryItem[]> => {
   }
 };
 
-// --- FAVORITES (HYBRID: FIREBASE + LOCAL) ---
+// --- FAVORITES (HYBRID) ---
 export const toggleFavorite = async (anime: Anime): Promise<boolean> => {
   await ensureAuth();
   const user = auth.currentUser;
   
   if (user && !user.isAnonymous) {
       try {
-        const favRef = ref(db, `users/${user.uid}/favorites`);
-        const snapshot = await get(favRef);
-        let favs: Anime[] = snapshot.exists() ? (Array.isArray(snapshot.val()) ? snapshot.val() : Object.values(snapshot.val())) : [];
+        const userFavRef = ref(db, `${USERS_PATH}/${user.uid}/favorites`);
+        const snapshot = await get(userFavRef);
+        let favs: Anime[] = snapshot.exists() ? snapshot.val() : [];
         
         const exists = favs.find(f => f.id === anime.id);
         if (exists) {
@@ -341,7 +333,7 @@ export const toggleFavorite = async (anime: Anime): Promise<boolean> => {
         } else {
           favs.push(anime);
         }
-        await set(favRef, favs);
+        await set(userFavRef, favs);
         return !exists;
       } catch (e) { return false; }
   } else {
@@ -366,9 +358,12 @@ export const isFavorite = async (animeId: string): Promise<boolean> => {
    
    if (user && !user.isAnonymous) {
        try {
-         const snapshot = await get(ref(db, `users/${user.uid}/favorites`));
-         const favs: Anime[] = snapshot.exists() ? (Array.isArray(snapshot.val()) ? snapshot.val() : Object.values(snapshot.val())) : [];
-         return !!favs.find(f => f.id === animeId);
+         const snapshot = await get(ref(db, `${USERS_PATH}/${user.uid}/favorites`));
+         if (snapshot.exists()) {
+             const favs = snapshot.val() || [];
+             return !!favs.find((f: Anime) => f.id === animeId);
+         }
+         return false;
        } catch (e) { return false; }
    } else {
        try {
@@ -385,10 +380,9 @@ export const getFavorites = async (): Promise<Anime[]> => {
 
     if (user && !user.isAnonymous) {
         try {
-            const snapshot = await get(ref(db, `users/${user.uid}/favorites`));
+            const snapshot = await get(ref(db, `${USERS_PATH}/${user.uid}/favorites`));
             if (snapshot.exists()) {
-                const val = snapshot.val();
-                return Array.isArray(val) ? val : Object.values(val);
+                return snapshot.val() || [];
             }
             return [];
         } catch(e) { return []; }
@@ -400,66 +394,68 @@ export const getFavorites = async (): Promise<Anime[]> => {
     }
 };
 
-// --- COMMENTS (FIREBASE RTDB) ---
+// --- COMMENTS (REALTIME DB) ---
 export const addComment = async (animeId: string, userName: string, text: string) => {
   await ensureAuth();
   try {
-    const commentRef = push(ref(db, `${COMMENTS_PATH}/${animeId}`));
-    await set(commentRef, {
-      id: commentRef.key,
+    const commentsRef = ref(db, COMMENTS_PATH);
+    const newCommentRef = push(commentsRef);
+    await set(newCommentRef, {
+      animeId,
       userName,
       text,
       timestamp: Date.now()
     });
   } catch (e) {
-    console.error("Failed to post comment (Permission Denied?)", e);
+    console.error("Failed to post comment", e);
   }
 };
 
 export const subscribeToComments = (animeId: string, callback: (comments: Comment[]) => void) => {
-  const commentsRef = ref(db, `${COMMENTS_PATH}/${animeId}`);
-  // Limit to last 50 comments
-  const listener = onValue(commentsRef, (snapshot) => {
-    if (snapshot.exists()) {
-      const data = snapshot.val();
-      const loadedComments: Comment[] = Object.values(data);
-      // Sort by new
-      loadedComments.sort((a, b) => b.timestamp - a.timestamp);
-      callback(loadedComments);
-    } else {
-      callback([]);
-    }
-  }, (error) => {
-    // Suppress permission denied errors in console for readers
-    console.warn("Comments subscription error:", error.message);
-    callback([]);
+  // Query comments for specific anime
+  const commentsQuery = query(
+      ref(db, COMMENTS_PATH), 
+      orderByChild('animeId'), 
+      equalTo(animeId)
+  );
+
+  const unsubscribe = onValue(commentsQuery, (snapshot) => {
+      if (snapshot.exists()) {
+          const data = snapshot.val();
+          const loadedComments = Object.entries(data).map(([key, val]: [string, any]) => ({
+              id: key,
+              ...val
+          }));
+          // Sort client-side by timestamp descending since RTDB only sorts by one child
+          loadedComments.sort((a, b) => b.timestamp - a.timestamp);
+          callback(loadedComments);
+      } else {
+          callback([]);
+      }
   });
   
-  return () => off(commentsRef, 'value', listener);
+  return unsubscribe;
 };
 
 // --- NOTIFICATIONS & TOKENS ---
 export const saveTokenToDb = async (token: string) => {
-    // This allows sending notifications to everyone (broadcast)
     await ensureAuth();
     const user = auth.currentUser;
     const uid = user ? user.uid : 'guest';
     
-    // Save to global list for admin broadcasting
-    // Use token as key to prevent duplicates
-    const safeToken = token.substring(0, 100) + "..."; // logging
     try {
+        // Save to fcm_tokens node
         await set(ref(db, `${TOKENS_PATH}/${token}`), {
             uid: uid,
             timestamp: Date.now()
         });
         
-        // Also save to user profile if logged in
+        // Save to user profile
         if (user && !user.isAnonymous) {
-            await set(ref(db, `users/${user.uid}/fcmToken`), token);
+            await update(ref(db, `${USERS_PATH}/${user.uid}`), { fcmToken: token });
         }
     } catch (e) {
-        console.warn("Failed to save FCM token to DB", e);
+        console.warn("Failed to save FCM token", e);
     }
 };
 
@@ -479,13 +475,13 @@ export const getAllFcmTokens = async (): Promise<string[]> => {
 
 export const saveFcmServerKey = async (key: string) => {
     await ensureAuth();
-    await set(ref(db, `${SETTINGS_PATH}/fcmServerKey`), key);
+    await update(ref(db, `${SETTINGS_PATH}/global`), { fcmServerKey: key });
 };
 
 export const getFcmServerKey = async (): Promise<string> => {
     await ensureAuth();
     try {
-        const snapshot = await get(ref(db, `${SETTINGS_PATH}/fcmServerKey`));
+        const snapshot = await get(ref(db, `${SETTINGS_PATH}/global/fcmServerKey`));
         return snapshot.exists() ? snapshot.val() : '';
     } catch (e) { return ''; }
 };
@@ -493,9 +489,9 @@ export const getFcmServerKey = async (): Promise<string> => {
 // --- NOTIFICATION HISTORY ---
 export const saveNotificationHistory = async (notif: Omit<NotificationLog, 'id'>) => {
     await ensureAuth();
-    const dbRef = ref(db, NOTIF_HISTORY_PATH);
-    const newItemRef = push(dbRef);
-    await set(newItemRef, { ...notif, id: newItemRef.key });
+    const listRef = ref(db, NOTIF_HISTORY_PATH);
+    const newRef = push(listRef);
+    await set(newRef, notif);
 };
 
 export const getNotificationHistory = async (): Promise<NotificationLog[]> => {
@@ -504,8 +500,9 @@ export const getNotificationHistory = async (): Promise<NotificationLog[]> => {
         const snapshot = await get(ref(db, NOTIF_HISTORY_PATH));
         if (snapshot.exists()) {
             const data = snapshot.val();
-            // Convert to array and sort by newest first
-            return Object.values(data).sort((a: any, b: any) => b.timestamp - a.timestamp) as NotificationLog[];
+            return Object.entries(data)
+                .map(([id, val]: [string, any]) => ({ id, ...val }))
+                .sort((a, b) => b.timestamp - a.timestamp);
         }
         return [];
     } catch (e) { return []; }
